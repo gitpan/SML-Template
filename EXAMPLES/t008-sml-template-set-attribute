@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w
+
+	use strict;
+	use warnings;
+	use Data::Dump qw(pp);
+	use	SML::Template;
+	
+	print "START\n";
+	
+	my	$source_filename	= 'template2.sml';
+
+	my	$template = new SML::Template();
+	my	$text_source = qx{cat $source_filename};
+		$template->parse( $text_source );
+
+	print "PARSED\n";
+
+	$template->{token_value}{attr1}	= 'my-body';
+	
+	$SML::Template::DEBUG=1;
+	print $template->build();

@@ -1,0 +1,16 @@
+ABOUT/acronyme
+EXAMPLES/data.sml
+EXAMPLES/t003-sml-parse-attributes
+EXAMPLES/t004-sml-template-parse
+EXAMPLES/t005-sml-template-parse-build
+EXAMPLES/t006-sml-most-simple-template
+EXAMPLES/t007-sml-template-input-form
+EXAMPLES/t007-sml-template-tokens-order
+EXAMPLES/t008-sml-template-set-attribute
+EXAMPLES/template2.sml
+MANIFEST
+Makefile.PL
+RCS/Template.pm_rev
+README
+Template.pm
+t/00-01_use.t

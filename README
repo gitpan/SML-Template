@@ -1,0 +1,63 @@
+NAME
+
+    SML::Template - Template using SIMPLIFIED MARKUP LANGUAGE
+
+     $Revision: 1.9 $
+     $Date: 2004/05/13 20:06:31 $
+
+METHODS
+
+    new ( )
+         $sml = SML::Template->new( );
+ 
+    parse ( $sml )
+        Parse template string/sml data.
+
+    define_token ( $meta_data )
+        Tokens are defined using structured $meta_data.
+
+        See example lines of metadata:
+
+        to define token 'title' to feed data into any <title> element
+
+         $meta_data = " token.title:   element.feed:     title "
+ 
+        to define token 'title' to feed data into any <h1 ...
+        class="my-heading" ... > element
+
+         $meta_data = " token.title:   element.feed:     h1.class.my-heading "
+ 
+        to defined token 'text' to replace any <my-custom-element .... >
+        element by supplied data
+
+         $meta_data = " token.text:    element.replace:  my-custom-element "
+        
+    set_token_value ( $token_name, $value )
+        Set scalar value of named token. Doesn't check existence of the
+        token.
+
+    get_token_value ( $token_name )
+        Get value currently supplied by token, the value could change time
+        to time for previously defined any reasons.
+
+        Eg. we cold define the token to supply current time, or fetch
+        sequentiol values from database.
+
+        (However, this is one of the higher priority TODO's)
+
+    build ( )
+        Build the whole template.
+
+    get_tokens_definition_order ( )
+        Return names of tokens as they first appeared in definition list.
+
+    build_sml_input_form ( )
+        Build simple input form suitable for tex/plain editing and feeding
+        trough SML::Block.
+
+TODO
+
+    - substitution into element attributes
+
+    - rewrite some parts of code into methods and subclasses
+

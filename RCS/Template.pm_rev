@@ -1,0 +1,798 @@
+head	1.9;
+access;
+symbols;
+locks
+	root:1.9; strict;
+comment	@# @;
+
+
+1.9
+date	2004.05.13.20.06.31;	author root;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2004.05.13.10.21.45;	author root;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2004.05.12.22.18.34;	author root;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2004.05.12.22.17.59;	author root;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2004.05.12.21.47.47;	author root;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2004.05.12.20.55.00;	author root;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2004.05.12.20.52.34;	author root;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2004.05.10.20.45.08;	author root;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2004.05.10.20.28.18;	author root;	state Exp;
+branches;
+next	;
+
+
+desc
+@SML::Template
+@
+
+
+1.9
+log
+@*** empty log message ***
+@
+text
+@### //////////////////////////////////////////////////////////////////////////
+#
+#	TOP
+#
+
+=head1 NAME
+
+SML::Template - Template using SIMPLIFIED MARKUP LANGUAGE
+
+=cut
+
+#------------------------------------------------------
+# 2004/03/28 0:51 - $Date: 2004/05/13 10:21:45 $
+# (C) Daniel Peder & Infoset s.r.o., all rights reserved
+# http://www.infoset.com, Daniel.Peder@@infoset.com
+#------------------------------------------------------
+
+###																###
+###	this document is edited with tabs having only 4 chars width ###
+###																###
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: package
+#
+
+	package SML::Template;
+
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: version
+#
+
+	use vars qw( $VERSION $VERSION_LABEL $REVISION $REVISION_DATETIME $REVISION_LABEL $PROG_LABEL );
+
+	$VERSION           = '0.10';
+	
+	$REVISION          = (qw$Revision: 1.8 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/13 10:21:45 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.8 2004/05/13 10:21:45 root Exp root $';
+	$VERSION_LABEL     = "$VERSION (rev. $REVISION $REVISION_DATETIME)";
+	$PROG_LABEL        = __PACKAGE__." - ver. $VERSION_LABEL";
+
+=pod
+
+ $Revision: 1.8 $
+ $Date: 2004/05/13 10:21:45 $
+
+=cut
+
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: debug
+#
+
+	use vars qw( $DEBUG ); $DEBUG=0;
+	
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: constants
+#
+
+	# use constant	name		=> 'value';
+	
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: modules use
+#
+
+	require 5.005_62;
+
+	use strict                  ;
+	use warnings                ;
+	
+	use	SML::Parser				;
+	
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: methods
+#
+
+=head1 METHODS
+
+=over 4
+
+=cut
+
+
+
+### ##########################################################################
+
+=item	new (  )
+
+ $sml = SML::Template->new( );
+ 
+=cut
+
+### --------------------------------------------------------------------------
+sub		new
+### --------------------------------------------------------------------------
+{
+	my( $proto ) = @@_;
+	my	$self = bless {}, ref( $proto ) || $proto;
+}
+
+
+### ##########################################################################
+
+=item	parse ( $sml )
+
+Parse template string/sml data.
+
+=cut
+
+### --------------------------------------------------------------------------
+sub		parse
+### --------------------------------------------------------------------------
+{
+	my( $self, $sml )=@@_;
+	
+		die "invalid sml data reference" if ref($sml) and ref($sml) ne 'ARRAY'; # very trivial check
+	
+		$self->{sml}	= SML::Parser->parse( $sml ) if !ref($sml); # string representation
+	my	$items			= $self->{sml};
+		
+	#--	get template-token and template-block items
+	for	my $item ( @@$items )
+	{
+
+		next unless	$item->[0] eq 'E';				# skip non-element items
+		next if		$item->[1];						# skip processing instructions as well as closing tags
+		
+		next unless	'meta' eq lc( $item->[2] );		# skip non-meta elements
+		next unless	my $attr_string 	= $item->[3];	# skip if missing any attributes
+		my	$attrs	= SML::Parser->parse_attributes( $attr_string );
+		next unless	my	$name_attr		= $attrs->{name};
+		next unless	$name_attr->[0] eq 'template';
+		next unless	exists $attrs->{content};
+		for my	$content_attr	( @@{$attrs->{content}} )
+		{
+			$self->define_token( $content_attr )
+		}
+	}
+	
+	#--	hack-like template definition post-cleanup
+	$self->define_token('token.__NONE__:element.replace:meta.name.template');
+	$self->set_token_value( __NONE__ => '' );
+}
+
+
+### ##########################################################################
+
+=item	define_token ( $meta_data )
+
+Define token using $meta_data, exmaples:
+	
+	"token.title:   element.feed.de-markup:  title"	
+	"token.title:   element.feed.raw:        h1" 	
+	"token.text:    element.feed:            p"		
+	"token.page-id: element.replace:         body"
+	
+	
+	
+=cut
+
+### --------------------------------------------------------------------------
+sub		define_token
+### --------------------------------------------------------------------------
+{
+	my( $self, $meta_data )=@@_;
+	
+		$meta_data		=~ s{\s+}{}gos;
+	my	@@token_parts	= split ':', $meta_data;
+	my	$token_object	= {};
+	for my $key ( qw( token method target ) )
+	{
+		$token_object->{$key}	= shift( @@token_parts ) || '';
+	}
+	@@$token_object{qw( token_type token_name )}											= split '\.', $token_object->{token};
+
+	@@$token_object{qw( method_target method_command method_transform )}					= split '\.', $token_object->{method};
+	$token_object->{method_target}		||= 'element';
+	$token_object->{method_command}		||= 'feed';
+	$token_object->{method_transform}	||= 'raw';
+
+	@@$token_object{qw( target_element target_attribute target_attribute_value )}		= split '\.', $token_object->{target};
+	
+	push @@{ $self->{token_object}{$token_object->{token_name}} }, $token_object;		# single token could be spread into many targets
+	push @@{ $self->{match_element}{$token_object->{target_element}} }, $token_object;	# link back token using element tag name
+	
+	
+}
+
+
+### ##########################################################################
+
+=item	set_token_value ( $token_name, $value )
+
+Set scalar value of named token. Doesn't check
+existence of the token.
+
+=cut
+
+### --------------------------------------------------------------------------
+sub		set_token_value
+### --------------------------------------------------------------------------
+{
+	my( $self, $token_name, $value )=@@_;
+	$self->{token_value}{$token_name}	= $value;
+}
+
+
+### ##########################################################################
+
+=item	get_token_value ( $token_name )
+
+Get value currently supplied by token, 
+the value could change time to time for 
+previously defined any reasons.
+
+Eg. we cold define the token to supply
+current time, or fetch sequentiol values from
+database. 
+
+(However, this is one of the higher priority TODO's)
+
+=cut
+
+### --------------------------------------------------------------------------
+sub		get_token_value
+### --------------------------------------------------------------------------
+{
+	my( $self, $token_name )=@@_;
+	$self->{token_value}{$token_name}
+}
+
+
+
+
+### ##########################################################################
+
+=item	build ( )
+
+Build the whole template.
+
+=cut
+
+### --------------------------------------------------------------------------
+sub		build
+### --------------------------------------------------------------------------
+{
+	my( $self )=@@_;
+
+	my	$result	= '';
+	my	$items	= $self->{sml};
+	for	my $item ( @@$items )
+	{
+		my	$type	= $item->[0];
+		my( $pi, $name, $attrs_unparsed )	;
+		my	$body							;
+		my	$content						= '';
+		if( $type eq 'E' )
+		{
+			( $pi, $name, $attrs_unparsed )	= @@$item[1,2,3];
+		}
+		else	#  'C', 'T'
+		{
+			$body								= $item->[1];
+		}
+		check_item: 
+		{
+			last	unless	$type eq 'E';				# require element type items
+			last	if		$pi;						# ignore processing instructions or closing tags
+			last 	unless	exists $self->{match_element}{$name};
+			for 	my		$token	( @@{ $self->{match_element}{$name} } )
+			{
+				# dont bore me unless there is any content to feed
+				next	unless defined 
+				( my	$token_value = $self->get_token_value( $token->{token_name} ));
+				
+				# check attributes parts if any
+				if( my $target_attribute = $token->{target_attribute} )
+				{
+					next unless $attrs_unparsed;
+					my	$item_attributes	= SML::Parser->parse_attributes( $attrs_unparsed );
+					next unless exists $item_attributes->{$target_attribute};
+					if( my $target_attribute_value = $token->{target_attribute_value} )
+					{
+						next unless	grep {$_ eq $target_attribute_value} @@{ $item_attributes->{$target_attribute} };
+					}
+				}
+				
+				# so far, so good, all checks passed, let's go build result
+				$type	.= '+'; # content modified
+				if( 	$token->{method_target} eq 'element' )
+				{
+					if( 	$token->{method_command} eq 'replace' )
+					{
+						$content	= $token_value;
+					}
+					elsif(	$token->{method_command} eq 'feed' )
+					{
+						$content	
+							=	join( '', '<', $pi, $name, $attrs_unparsed, '>' )
+							.	$token_value
+							;
+					}
+					else	# invalid: method_command
+					{
+						$content	
+							=	join( '', '<command:', $token->{method_command}, '?', $pi, $name, $attrs_unparsed, '>' )
+							.	$token_value
+							;
+					}
+				}
+				else	# invalid: method_target
+				{
+					$content	
+						=	join( '', '<target:', $token->{method_target}, '?', $pi, $name, $attrs_unparsed, '>' )
+						.	$token_value
+						;
+				}
+				last check_item if 0; # 0=css effect, 1=first match
+			}
+		}
+		
+		if(		$type eq 'E' )	# restore element
+		{
+			$result	.= join( '', '<', $pi, $name, $attrs_unparsed, '>' );
+		}
+		elsif(	$type eq 'C' )	# restore comment
+		{
+			$result	.= join( '', '<!--', $body, '-->' );
+		}
+		elsif(	$type eq 'T' )	# restore text
+		{
+			$result	.= $body;
+		}
+		else
+		{
+			$result	.= $content;
+		}
+	}
+	$result
+}
+
+
+
+=back
+
+=cut
+
+
+1;
+
+__DATA__
+
+__END__
+
+### //////////////////////////////////////////////////////////////////////////
+#
+#	SECTION: TODO
+#
+
+=head1 TODO	
+
+- substitution into element attributes
+
+- rewrite some parts of code into methods and subclasses
+
+=cut
+@
+
+
+1.8
+log
+@some cosmetic improvements
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/12 22:18:34 $
+d39 3
+a41 3
+	$REVISION          = (qw$Revision: 1.7 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/12 22:18:34 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.7 2004/05/12 22:18:34 root Exp root $';
+d47 2
+a48 2
+ $Revision: 1.7 $
+ $Date: 2004/05/12 22:18:34 $
+d177 2
+a178 1
+	my	@@token_parts	= split '\s*:\s*', $meta_data;
+d184 1
+a184 1
+	@@$token_object{qw( token_type token_name )}											= split '\s*\.\s*', $token_object->{token};
+d186 1
+a186 1
+	@@$token_object{qw( method_target method_command method_transform )}					= split '\s*\.\s*', $token_object->{method};
+d191 1
+a191 1
+	@@$token_object{qw( target_element target_attribute target_attribute_value )}		= split '\s*\.\s*', $token_object->{target};
+d259 1
+d334 1
+a334 1
+			print join( '', '<', $pi, $name, $attrs_unparsed, '>' );
+d338 1
+a338 1
+			print join( '', '<!--', $body, '-->' );
+d342 1
+a342 1
+			print $body;
+d346 1
+a346 1
+			print $content;
+d349 1
+@
+
+
+1.7
+log
+@*** empty log message ***
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/12 22:17:59 $
+a31 9
+#	SECTION: debug
+#
+
+	use vars qw( $DEBUG );
+	
+	$DEBUG=1;
+
+### //////////////////////////////////////////////////////////////////////////
+#
+d39 3
+a41 3
+	$REVISION          = (qw$Revision: 1.6 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/12 22:17:59 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.6 2004/05/12 22:17:59 root Exp root $';
+d47 2
+a48 2
+ $Revision: 1.6 $
+ $Date: 2004/05/12 22:17:59 $
+d55 8
+d97 1
+a97 1
+=item	new
+d99 1
+a99 1
+ $sml = SML::Template->new();
+d108 1
+a108 1
+	bless {}, ref( $proto ) || $proto;
+d114 1
+a114 1
+=item	parse ( $str )
+d116 1
+a116 1
+Parse template string data.
+d124 3
+a126 1
+	my( $self, $str )=@@_;
+d128 2
+a129 3
+	my	$parser			= new SML::Parser();
+	my	$items			= # ! see the next line
+		$self->{parsed}	= $parser->parse( $str );
+d140 1
+a140 1
+		my	$attrs	= $parser->parse_attributes( $attr_string );
+d149 4
+d258 1
+a258 2
+	my	$parser	= new SML::Parser();
+	my	$items	= $self->{parsed};
+d288 1
+a288 1
+					my	$item_attributes	= $parser->parse_attributes( $attrs_unparsed );
+d361 13
+@
+
+
+1.6
+log
+@before wiping helpers
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/12 21:47:47 $
+d48 3
+a50 3
+	$REVISION          = (qw$Revision: 1.5 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/12 21:47:47 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.5 2004/05/12 21:47:47 root Exp root $';
+d56 2
+a57 2
+ $Revision: 1.5 $
+ $Date: 2004/05/12 21:47:47 $
+a344 48
+
+
+
+### ##########################################################################
+
+=item	wipe_markup ( $text )
+
+Clean and wipe any angle brackets markup from the text.
+Entities left as they were before.
+
+=cut
+
+### --------------------------------------------------------------------------
+sub		wipe_markup
+### --------------------------------------------------------------------------
+{
+	my( $self, $text )=@@_;
+	
+	my	$sml	= SML::Parser->parse( $text );
+	join( '', map {$_->[1]} grep {$_->[0] eq 'T'} @@$sml );
+}
+
+
+
+### ##########################################################################
+
+=item	normalize_whitespace ( $text )
+
+Replace all whitespaces by single space ' '. 
+Also shrink multiple occurences into sigle. 
+
+=cut
+
+### --------------------------------------------------------------------------
+sub		normalize_whitespace
+### --------------------------------------------------------------------------
+{
+	my( $self, $text )=@@_;
+	
+	$text	=~ s{\s+}{ }gos;
+	$text
+}
+
+
+
+
+
+
+@
+
+
+1.5
+log
+@some helpers:
+wipe_markup()
+normalize_whitespace()
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/12 20:55:00 $
+d48 3
+a50 3
+	$REVISION          = (qw$Revision: 1.4 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/12 20:55:00 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.4 2004/05/12 20:55:00 root Exp root $';
+d56 2
+a57 2
+ $Revision: 1.4 $
+ $Date: 2004/05/12 20:55:00 $
+d158 4
+a161 4
+	"token.title:	element.feed.kill-markup;normalize-whitespace:	title"	
+	"token.title:	element.feed.html:								h1" 	
+	"token.text:	element.feed.html:								p"		
+	"token.page-id:	element.replace.strict:							body"
+d180 1
+d182 4
+@
+
+
+1.4
+log
+@well, now it could be working
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/12 20:52:34 $
+d48 3
+a50 3
+	$REVISION          = (qw$Revision: 1.3 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/12 20:52:34 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.3 2004/05/12 20:52:34 root Exp root $';
+d56 2
+a57 2
+ $Revision: 1.3 $
+ $Date: 2004/05/12 20:52:34 $
+d183 1
+a183 1
+	push @@{ $self->{defined_token}{$token_object->{token_name}} }, $token_object;		# single token could be spread into many targets
+d194 2
+a195 3
+Set single simple value of named token. Doesn't check
+existence of the token, because it could be created lately 
+on.
+d254 1
+a254 1
+		my( $pi, $name, $attributes_body )	;
+d259 1
+a259 1
+			( $pi, $name, $attributes_body )	= @@$item[1,2,3];
+d279 2
+a280 2
+					next unless $attributes_body;
+					my	$item_attributes	= $parser->parse_attributes( $attributes_body );
+d299 1
+a299 1
+							=	join( '', '<', $pi, $name, $attributes_body, '>' )
+d306 1
+a306 1
+							=	join( '', '<command:', $token->{method_command}, '?', $pi, $name, $attributes_body, '>' )
+d314 1
+a314 1
+						=	join( '', '<target:', $token->{method_target}, '?', $pi, $name, $attributes_body, '>' )
+d324 1
+a324 1
+			print join( '', '<', $pi, $name, $attributes_body, '>' );
+d339 42
+@
+
+
+1.3
+log
+@first working version - very trivial, however working
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/10 20:45:08 $
+d48 3
+a50 3
+	$REVISION          = (qw$Revision: 1.2 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/10 20:45:08 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.2 2004/05/10 20:45:08 root Exp root $';
+d56 2
+a57 2
+ $Revision: 1.2 $
+ $Date: 2004/05/10 20:45:08 $
+d192 1
+a192 1
+=item	set_token_value ( $tokem_name, $value )
+d204 1
+a204 1
+	my( $self, $tokem_name, $value )=@@_;
+d275 1
+a275 1
+				my		$token_value = $self->get_token_value( $token->{token_name} );
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d8 1
+a8 1
+SML::Template - SIMPLIFIED MARKUP LANGUAGE
+d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/05/10 20:28:18 $
+d18 4
+d32 9
+d48 3
+a50 3
+	$REVISION          = (qw$Revision: 1.1 $)[1];
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/05/10 20:28:18 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.1 2004/05/10 20:28:18 root Exp root $';
+d56 2
+a57 2
+ $Revision: 1.1 $
+ $Date: 2004/05/10 20:28:18 $
+a80 1
+	use	base	qw(SML::Parser)	;
+d96 3
+a98 1
+=item	new, parse, parse_attributes
+d100 1
+a100 1
+ Inherited from SML::Parser.
+d103 242
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d13 1
+a13 1
+# 2004/03/28 0:51 - $Date: 2004/03/30 01:08:04 $
+d36 2
+a37 2
+	$REVISION_DATETIME = join(' ',(qw$Date: 2004/03/30 01:08:04 $)[1,2]);
+	$REVISION_LABEL    = '$Id: Template.pm_rev 1.1 2004/03/30 01:08:04 root Exp root $';
+d44 1
+a44 1
+ $Date: 2004/03/30 01:08:04 $
+d67 3
+d84 1
+a84 1
+=item new
+d86 1
+a86 1
+ $sml = SML::Template->new();
+a89 6
+### --------------------------------------------------------------------------
+sub new
+### --------------------------------------------------------------------------
+{
+	bless {};
+}
+@

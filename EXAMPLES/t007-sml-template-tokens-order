@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+
+	use strict;
+	use warnings;
+	use Data::Dump qw(pp);
+	use	SML::Template;
+	
+	print "START\n";
+	
+	my	$source_filename	= 'data.sml';
+
+	my	$template = new SML::Template();
+	my	$text_source = qx{cat $source_filename};
+		$template->parse( $text_source );
+
+	print "PARSED\n";
+
+	print join( ', ', $template->get_tokens_definition_order ), "\n";
+	
